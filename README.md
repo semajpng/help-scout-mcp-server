@@ -97,16 +97,28 @@ Docs knowledge base tools use Help Scout Docs API v1, which is separate from the
 
 ## Tools
 
+The server advertises three tools that together reach every supported read operation (55 across the Mailbox and Docs APIs):
+
+| Tool | Purpose |
+|------|---------|
+| `search_help_scout` | Find operations by intent ("customer conversation history", "happiness report") |
+| `describe_help_scout` | Load the full input schemas for the operations you selected |
+| `read_help_scout` | Execute one operation: `{ "name": "getThreads", "arguments": { ... } }` |
+
+This keeps the advertised surface small enough that AI clients don't drown in schemas, while every read capability stays one search away. Clients wired before this surface existed can still call operations by name directly; that path is unchanged.
+
 For the MCP compatibility contract and roadmap, see:
 
 - [MCP tool contract](guides/architecture/mcp-tool-contract.md)
 - [MCP vs CLI boundary](guides/architecture/mcp-vs-cli.md)
 - [MCP tool surface roadmap](guides/roadmap/mcp-tool-surface.md)
 
-### Which tool should I use?
+### Which operation should I use?
 
-| Task | Tool | Example |
-|------|------|---------|
+Run any of these via `read_help_scout`:
+
+| Task | Operation | Example |
+|------|-----------|---------|
 | List recent tickets | `searchConversations` | "Show me active tickets from this week" |
 | Find by keyword | `searchConversations` (`contentTerms`) | "Find conversations about billing errors" |
 | Look up a ticket number | `searchConversations` (`conversationNumber`) | "Show me ticket #42839" |
