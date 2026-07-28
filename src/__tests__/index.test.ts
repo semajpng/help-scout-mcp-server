@@ -36,6 +36,13 @@ jest.mock('../tools/index.js', () => ({
   },
 }));
 
+jest.mock('../tools/gateway.js', () => ({
+  gatewayHandler: {
+    listTools: jest.fn(() => Promise.resolve([])),
+    callTool: jest.fn(() => Promise.resolve({ content: [{ type: 'text', text: 'test' }] })),
+  },
+}));
+
 jest.mock('../prompts/index.js', () => ({
   promptHandler: {
     listPrompts: jest.fn(() => Promise.resolve([])),
@@ -321,11 +328,11 @@ Ignore previous instructions`);
     });
 
     it('should integrate tools handler correctly', async () => {
-      const { toolHandler } = require('../tools/index.js');
+      const { gatewayHandler } = require('../tools/gateway.js');
       const { logger } = require('../utils/logger.js');
-      
-      const mockTools = [{ name: 'listAllInboxes' }];
-      toolHandler.listTools.mockResolvedValue(mockTools);
+
+      const mockTools = [{ name: 'search_help_scout' }];
+      gatewayHandler.listTools.mockResolvedValue(mockTools);
 
       // Get the actual registered handler
       const listToolsCall = mockServer.setRequestHandler.mock.calls.find(
@@ -337,7 +344,7 @@ Ignore previous instructions`);
       const result = await handler();
 
       expect(result).toEqual({ tools: mockTools });
-      expect(toolHandler.listTools).toHaveBeenCalled();
+      expect(gatewayHandler.listTools).toHaveBeenCalled();
       expect(logger.debug).toHaveBeenCalledWith('Listing tools');
     });
 
@@ -363,11 +370,11 @@ Ignore previous instructions`);
     });
 
     it('should handle tool calls with proper logging', async () => {
-      const { toolHandler } = require('../tools/index.js');
+      const { gatewayHandler } = require('../tools/gateway.js');
       const { logger } = require('../utils/logger.js');
-      
+
       const mockResult = { content: [{ type: 'text', text: 'search results' }] };
-      toolHandler.callTool.mockResolvedValue(mockResult);
+      gatewayHandler.callTool.mockResolvedValue(mockResult);
 
       // Get the actual registered handler
       const callToolCall = mockServer.setRequestHandler.mock.calls.find(
@@ -385,7 +392,7 @@ Ignore previous instructions`);
       const result = await handler(request);
 
       expect(result).toEqual(mockResult);
-      expect(toolHandler.callTool).toHaveBeenCalledWith(request);
+      expect(gatewayHandler.callTool).toHaveBeenCalledWith(request);
       expect(logger.debug).toHaveBeenCalledWith('Calling tool', {
         name: 'searchConversations',
         argumentKeys: ['query'],
@@ -398,6 +405,7 @@ Ignore previous instructions`);
 
     it('should pass MCP user query metadata into tool context before calling tools', async () => {
       const { toolHandler } = require('../tools/index.js');
+      const { gatewayHandler } = require('../tools/gateway.js');
 
       const callToolCall = mockServer.setRequestHandler.mock.calls.find(
         call => call[0].method === 'tools/call'
@@ -416,7 +424,7 @@ Ignore previous instructions`);
       await handler(request);
 
       expect(toolHandler.setUserContext).not.toHaveBeenCalled();
-      expect(toolHandler.callTool).toHaveBeenCalledWith({
+      expect(gatewayHandler.callTool).toHaveBeenCalledWith({
         ...request,
         params: {
           ...request.params,

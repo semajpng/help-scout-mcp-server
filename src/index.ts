@@ -13,7 +13,7 @@ import { validateConfig } from './utils/config.js';
 import { logger } from './utils/logger.js';
 import { helpScoutClient, type PaginatedResponse } from './utils/helpscout-client.js';
 import { resourceHandler } from './resources/index.js';
-import { toolHandler } from './tools/index.js';
+import { gatewayHandler } from './tools/gateway.js';
 import { promptHandler } from './prompts/index.js';
 import type { Inbox } from './schema/types.js';
 import { createMcpResourceError } from './utils/mcp-errors.js';
@@ -98,9 +98,15 @@ export class HelpScoutMCPServer {
 ## Available Inboxes (${inboxes.length} total)
 ${inboxes.length > 0 ? inboxList : '  No inboxes found - check API credentials'}
 
-## Tool Selection Guide
-| Task | Tool |
-|------|------|
+## How to Use This Server
+Three tools cover every read capability:
+1. **search_help_scout** - find operations by intent (e.g. "customer conversation history")
+2. **describe_help_scout** - load the full input schemas for the operations you selected
+3. **read_help_scout** - execute one operation: { "name": "<operation>", "arguments": { ... } }
+
+## Operation Selection Guide (execute via read_help_scout)
+| Task | Operation |
+|------|-----------|
 | Find tickets by keyword (billing, refund, bug) | searchConversations (contentTerms) |
 | List recent/filtered tickets | searchConversations |
 | Complex filters (email domain, customer IDs) | searchConversations (emailDomain/customerIds) |
@@ -128,8 +134,9 @@ ${inboxes.length > 0 ? inboxList : '  No inboxes found - check API credentials'}
 
 ## Notes
 - Always use inbox IDs from the list above (not names)
-- All search tools default to active+pending+closed statuses
-- Use getServerTime for date-relative queries`;
+- Search operations default to active+pending+closed statuses
+- Use getServerTime for date-relative queries
+- Everything is read-only; write operations are not available`;
 
       logger.info('Inbox discovery successful', { inboxCount: inboxes.length });
       return { instructions, inboxes };
@@ -145,7 +152,7 @@ ${inboxes.length > 0 ? inboxList : '  No inboxes found - check API credentials'}
       return {
         instructions: `Help Scout MCP Server - Read-only access to conversations.
 
-Note: Inbox auto-discovery failed (${safeError}). Use listAllInboxes tool to see available inboxes.`,
+Note: Inbox auto-discovery failed (${safeError}). Run the listAllInboxes operation via read_help_scout to see available inboxes.`,
         inboxes: [],
       };
     }
@@ -189,7 +196,7 @@ Note: Inbox auto-discovery failed (${safeError}). Use listAllInboxes tool to see
       logger.debug('Listing tools');
       try {
         return {
-          tools: await toolHandler.listTools(),
+          tools: await gatewayHandler.listTools(),
         };
       } catch (error) {
         logger.error('Error listing tools', { error: error instanceof Error ? error.message : String(error) });
@@ -218,7 +225,7 @@ Note: Inbox auto-discovery failed (${safeError}). Use listAllInboxes tool to see
           },
         }
         : request;
-      return await toolHandler.callTool(requestForTool);
+      return await gatewayHandler.callTool(requestForTool);
     });
 
     // Prompts
