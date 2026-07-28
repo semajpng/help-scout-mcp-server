@@ -1,7 +1,7 @@
 {
   "name": "helpscout-search",
   "description": "Read-only MCP server for Help Scout conversations, customers, organizations, reports, metadata, and Docs knowledge base.",
-  "version": "1.9.0",
+  "version": "2.0.0",
   "mcpVersion": "1.17.4",
   "resources": [
     "helpscout://inboxes",

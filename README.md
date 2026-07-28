@@ -58,7 +58,7 @@ Add to your MCP client's config file (e.g., `claude_desktop_config.json`, `.curs
   "mcpServers": {
     "helpscout": {
       "command": "npx",
-      "args": ["help-scout-mcp-server@1.9.0"],
+      "args": ["help-scout-mcp-server@2.0.0"],
       "env": {
         "HELPSCOUT_APP_ID": "your-app-id",
         "HELPSCOUT_APP_SECRET": "your-app-secret",
@@ -75,7 +75,7 @@ Add to your MCP client's config file (e.g., `claude_desktop_config.json`, `.curs
 docker run -e HELPSCOUT_APP_ID="your-app-id" \
   -e HELPSCOUT_APP_SECRET="your-app-secret" \
   -e HELPSCOUT_DOCS_API_KEY="optional-docs-api-key" \
-  drewburchfield/help-scout-mcp-server:1.9.0
+  drewburchfield/help-scout-mcp-server:2.0.0
 ```
 
 ## Getting Your API Credentials
@@ -192,7 +192,7 @@ curl -X POST https://api.helpscout.net/v2/oauth2/token \
 **Need more detail?** Enable debug logging:
 
 ```bash
-LOG_LEVEL=debug npx help-scout-mcp-server@1.9.0
+LOG_LEVEL=debug npx help-scout-mcp-server@2.0.0
 ```
 
 ## Development

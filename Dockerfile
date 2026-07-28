@@ -54,7 +54,7 @@ ENTRYPOINT ["node", "dist/cli.js"]
 
 # Labels for metadata
 LABEL name="help-scout-mcp-server" \
-      description="Read-only Help Scout MCP server for conversations, customers, reports, metadata, and Docs" \
-      version="1.9.0" \
+      description="Help Scout MCP server for searching inboxes, conversations, and threads" \
+      version="2.0.0" \
       maintainer="Drew Burchfield" \
       io.modelcontextprotocol.server.name="io.github.drewburchfield/help-scout-mcp"

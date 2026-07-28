@@ -2,7 +2,7 @@
 
 Core workflow reference for the most common Help Scout MCP tools.
 
-The server exposes 102 read-only tools in v1.9.0. Use the live MCP tool schemas for the complete parameter surface, especially for reports, metadata, Docs, and lower-frequency admin reads.
+As of v2.0.0 the server advertises three tools (`search_help_scout`, `describe_help_scout`, `read_help_scout`) over a registry of 55 read-only operations. Discover operations with `search_help_scout`, load schemas with `describe_help_scout`, and execute with `read_help_scout`. The operation names below still dispatch directly for compatibility, but new work should go through the gateway.
 
 ---
 

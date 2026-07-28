@@ -1,6 +1,6 @@
 {
   "name": "help-scout-mcp-server",
-  "version": "1.9.0",
+  "version": "2.0.0",
   "mcpName": "io.github.drewburchfield/help-scout-mcp",
   "description": "Read-only MCP server for Help Scout conversations, customers, organizations, reports, metadata, and Docs",
   "main": "dist/index.js",
@@ -105,10 +105,10 @@
   },
   "overrides": {
     "cross-spawn": "^7.0.6",
-    "brace-expansion": "^2.1.1",
-    "minimatch": "^9.0.7",
-    "hono": "4.12.25",
-    "@hono/node-server": "1.19.13",
+    "brace-expansion": "^5.0.8",
+    "minimatch": "^10.2.5",
+    "hono": "4.12.32",
+    "@hono/node-server": "2.0.12",
     "@inquirer/editor": "4.2.16"
   }
 }

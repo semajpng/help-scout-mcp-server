@@ -18,7 +18,7 @@ Guides you to the right Help Scout MCP tool for each support investigation task.
 - Correct sequencing when inbox names need IDs
 - Prevents the "active-only" search trap
 - Parameter references for the read-only Help Scout tool surface
-- Bundled MCP server pinned to `help-scout-mcp-server@1.9.0`
+- Bundled MCP server pinned to `help-scout-mcp-server@2.0.0`
 
 ## Requirements
 
