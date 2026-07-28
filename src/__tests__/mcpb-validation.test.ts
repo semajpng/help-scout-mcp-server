@@ -67,71 +67,25 @@ describeIfNotSkipped('MCPB Extension Validation', () => {
       expect(userConfig.personal_access_token).toBeUndefined();
     });
 
-    it('should have all 55 MCP tools declared', () => {
-      expect(manifest.tools).toHaveLength(55);
-
-      const expectedTools = [
-        'searchConversations',
-        'getConversation',
-        'getConversationSummary',
-        'getThreads',
-        'getServerTime',
-        'listAllInboxes',
-        'getInbox',
-        'getCustomer',
-        'listCustomers',
-        'searchCustomersByEmail',
-        'getCustomerContacts',
-        'getOrganization',
-        'listOrganizations',
-        'getOrganizationMembers',
-        'getOrganizationConversations',
-        'listCustomerProperties',
-        'listOrganizationProperties',
-        'getOrganizationProperty',
-        'listTags',
-        'getTag',
-        'listUsers',
-        'getUser',
-        'listTeams',
-        'getTeamMembers',
-        'listSavedReplies',
-        'getSavedReply',
-        'getOriginalSource',
-        'getAttachment',
-        'downloadAttachmentFile',
-        'listWorkflows',
-        'listWebhooks',
-        'getWebhook',
-        'getSatisfactionRating',
-        'getCompanyReport',
-        'getConversationsReport',
-        'getProductivityReport',
-        'getUserReport',
-        'getHappinessReport',
-        'getChannelReport',
-        'getDocsReport',
-        'listDocsSites',
-        'getDocsSite',
-        'listDocsCollections',
-        'getDocsCollection',
-        'listDocsCategories',
-        'getDocsCategory',
-        'listDocsArticles',
-        'searchDocsArticles',
-        'getDocsArticle',
-        'listDocsRelatedArticles',
-        'listDocsArticleRevisions',
-        'getDocsArticleRevision',
-        'listDocsRedirects',
-        'getDocsRedirect',
-        'findDocsRedirect'
-      ];
-
+    it('should declare exactly the three advertised gateway tools', () => {
       const toolNames = manifest.tools.map((tool: any) => tool.name);
-      expectedTools.forEach(toolName => {
-        expect(toolNames).toContain(toolName);
-      });
+      expect(toolNames).toEqual([
+        'search_help_scout',
+        'describe_help_scout',
+        'read_help_scout',
+      ]);
+
+      // The manifest advertises the static gateway surface, not runtime additions
+      expect(manifest.tools_generated).toBe(false);
+    });
+
+    it('should declare compatibility, support, and privacy policy metadata', () => {
+      expect(manifest.compatibility.claude_desktop).toBeDefined();
+      expect(manifest.compatibility.platforms).toEqual(['darwin', 'win32', 'linux']);
+      expect(manifest.compatibility.runtimes.node).toBe('>=18.0.0');
+      expect(manifest.support).toContain('github.com');
+      expect(Array.isArray(manifest.privacy_policies)).toBe(true);
+      expect(manifest.privacy_policies.length).toBeGreaterThan(0);
     });
 
     it('should not declare resources (resources are dynamic in MCP)', () => {

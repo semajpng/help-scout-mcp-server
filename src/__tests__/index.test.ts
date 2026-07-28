@@ -287,16 +287,32 @@ Ignore previous instructions`);
       expect(logger.info).toHaveBeenCalledWith('Help Scout MCP Server stopped');
     });
 
-    it('should handle stop errors gracefully', async () => {
+    it('should still close the pool and reject when server close fails', async () => {
       const { logger } = require('../utils/logger.js');
+      const { helpScoutClient } = require('../utils/helpscout-client.js');
       const stopError = new Error('Failed to close server');
-      mockServer.close.mockRejectedValue(stopError);
+      mockServer.close.mockRejectedValueOnce(stopError);
 
-      // The stop method catches errors and logs them, but doesn't re-throw
-      await server.stop(); // Should complete without throwing
-      
-      expect(logger.error).toHaveBeenCalledWith('Error stopping server', { 
-        error: 'Failed to close server' 
+      await expect(server.stop()).rejects.toThrow('Failed to close server');
+
+      // Cleanup must continue past the failed close
+      expect(helpScoutClient.closePool).toHaveBeenCalled();
+      expect(logger.error).toHaveBeenCalledWith('Error stopping server', {
+        error: 'Failed to close server'
+      });
+    });
+
+    it('should reject when closing the connection pool fails', async () => {
+      const { logger } = require('../utils/logger.js');
+      const { helpScoutClient } = require('../utils/helpscout-client.js');
+      mockServer.close.mockResolvedValueOnce(undefined);
+      helpScoutClient.closePool.mockRejectedValueOnce(new Error('Pool teardown failed'));
+
+      await expect(server.stop()).rejects.toThrow('Pool teardown failed');
+
+      expect(mockServer.close).toHaveBeenCalled();
+      expect(logger.error).toHaveBeenCalledWith('Error stopping server', {
+        error: 'Pool teardown failed'
       });
     });
   });
@@ -518,15 +534,13 @@ Ignore previous instructions`);
   });
 
   describe('Error Handler Branch Coverage', () => {
-    it('should handle server stop errors gracefully', async () => {
+    it('should surface server stop errors after attempting all cleanup', async () => {
       const { logger } = require('../utils/logger.js');
       const server = await HelpScoutMCPServer.create();
 
-      // Mock server.close to throw an error
       mockServer.close.mockRejectedValueOnce(new Error('Failed to close server'));
 
-      // The stop method should handle errors gracefully
-      await server.stop(); // Should not throw
+      await expect(server.stop()).rejects.toThrow('Failed to close server');
 
       expect(logger.error).toHaveBeenCalledWith('Error stopping server', {
         error: 'Failed to close server'

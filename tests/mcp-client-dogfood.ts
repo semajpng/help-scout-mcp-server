@@ -55,7 +55,10 @@ const GOLDEN = {
   docsRedirectId: process.env.MCP_DOGFOOD_DOCS_REDIRECT_ID,
   docsRedirectUrl: process.env.MCP_DOGFOOD_DOCS_REDIRECT_URL,
   docsSearchQuery: process.env.MCP_DOGFOOD_DOCS_SEARCH_QUERY ?? 'test',
-  reportStart: process.env.MCP_DOGFOOD_REPORT_START ?? daysAgoIso(30),
+  // Report scenarios assert on seeded activity, so the window must cover the
+  // most recent dogfood:seed run. Keep under ~60 days: longer ranges make some
+  // report series endpoints reject the request. Re-seed when data ages out.
+  reportStart: process.env.MCP_DOGFOOD_REPORT_START ?? daysAgoIso(45),
   reportEnd: process.env.MCP_DOGFOOD_REPORT_END ?? daysAgoIso(0),
   skipReports: process.env.MCP_DOGFOOD_SKIP_REPORTS === 'true',
 };

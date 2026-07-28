@@ -292,19 +292,31 @@ Note: Inbox auto-discovery failed (${safeError}). Run the listAllInboxes operati
   }
 
   async stop(): Promise<void> {
+    // Attempt every cleanup step even when an earlier one fails, then
+    // surface the first failure so shutdown() can exit non-zero.
+    const failures: unknown[] = [];
+
     try {
-      // Close the MCP server
       await this.server.close();
-      
-      // Close HTTP connection pool
-      await helpScoutClient.closePool();
-      
-      logger.info('Help Scout MCP Server stopped');
     } catch (error) {
-      logger.error('Error stopping server', { 
-        error: error instanceof Error ? error.message : String(error) 
-      });
+      failures.push(error);
     }
+
+    try {
+      await helpScoutClient.closePool();
+    } catch (error) {
+      failures.push(error);
+    }
+
+    if (failures.length > 0) {
+      const first = failures[0];
+      logger.error('Error stopping server', {
+        error: first instanceof Error ? first.message : String(first),
+      });
+      throw first instanceof Error ? first : new Error(String(first));
+    }
+
+    logger.info('Help Scout MCP Server stopped');
   }
 }
 
