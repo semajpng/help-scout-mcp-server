@@ -11,7 +11,7 @@
     {
       "name": "helpscout-navigator",
       "source": "./plugins/helpscout-navigator",
-      "description": "Help Scout support, customer, organization, report, metadata, and Docs navigation guidance. Bundles the read-only Help Scout MCP server and pins the 1.9.0 runtime.",
+      "description": "Help Scout support, customer, organization, report, metadata, and Docs navigation guidance. Bundles the read-only Help Scout MCP server and pins the 2.0.0 runtime.",
       "version": "1.2.0",
       "author": {
         "name": "Drew Burchfield"
