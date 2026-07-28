@@ -3725,6 +3725,38 @@ describe('ToolHandler', () => {
         expect(response.pagination.totalByStatus).toBeUndefined();
       });
 
+      it('should cap single-status results at the requested limit', async () => {
+        nock(baseURL)
+          .get('/conversations')
+          .query(params => params.status === 'closed')
+          .reply(200, {
+            _embedded: {
+              conversations: Array(25).fill(null).map((_, i) => ({
+                id: i,
+                subject: `Closed ${i}`,
+                status: 'closed',
+                createdAt: '2023-01-01T00:00:00Z',
+                customer: { id: 1 },
+              })),
+            },
+            page: { size: 25, totalElements: 100, totalPages: 4, number: 1 },
+          });
+
+        const result = await toolHandler.callTool({
+          method: 'tools/call',
+          params: {
+            name: 'searchConversations',
+            arguments: { status: 'closed', limit: 3 },
+          },
+        });
+        const response = JSON.parse((result.content[0] as { type: 'text'; text: string }).text);
+
+        expect(response.results).toHaveLength(3);
+        expect(response.searchInfo.limitApplied).toContain('limit=3');
+        // Paging semantics preserved for callers that want more
+        expect(response.nextPage).toBe(2);
+      });
+
       it('should handle partial failures in multi-status search', async () => {
         const activeResponse = {
           _embedded: {

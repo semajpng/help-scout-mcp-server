@@ -1,6 +1,12 @@
 import { Tool, CallToolRequest, CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import { logger } from '../utils/logger.js';
-import { ToolHandler, toolHandler } from './index.js';
+import { toolHandler } from './index.js';
+
+/** The two-method seam the gateway actually depends on. */
+export interface OperationRegistry {
+  listTools(): Promise<Tool[]>;
+  callTool(request: CallToolRequest): Promise<CallToolResult>;
+}
 
 export const SEARCH_TOOL_NAME = 'search_help_scout';
 export const DESCRIBE_TOOL_NAME = 'describe_help_scout';
@@ -37,7 +43,10 @@ interface OperationSchema extends OperationSummary {
 }
 
 function tokenize(value: unknown): string[] {
-  return String(value ?? '').toLowerCase().match(/[a-z0-9]+/g) || [];
+  // Tokens under 3 characters are dropped: bare substring matching would let
+  // "is" match "This" and inflate scores with noise.
+  return (String(value ?? '').toLowerCase().match(/[a-z0-9]+/g) || [])
+    .filter((term) => term.length >= 3);
 }
 
 function expandTerms(terms: string[]): Set<string> {
@@ -50,8 +59,7 @@ function expandTerms(terms: string[]): Set<string> {
   return expanded;
 }
 
-function scoreOperation(tool: Tool, queryTerms: string[]): number {
-  const expanded = expandTerms(queryTerms);
+function scoreOperation(tool: Tool, expanded: ReadonlySet<string>): number {
   const name = tool.name.toLowerCase();
   const text = `${tool.name} ${tool.description || ''}`.toLowerCase();
   let score = 0;
@@ -126,10 +134,10 @@ function gatewayToolDefinitions(operationCount: number): Tool[] {
           },
           arguments: {
             type: 'object',
-            description: 'Arguments matching the selected operation schema.',
+            description: 'Arguments matching the selected operation schema. Omit for operations that take none.',
           },
         },
-        required: ['name', 'arguments'],
+        required: ['name'],
         additionalProperties: false,
       },
       annotations: READ_ANNOTATIONS,
@@ -146,20 +154,30 @@ function gatewayToolDefinitions(operationCount: number): Tool[] {
 export class GatewayHandler {
   private registryPromise?: Promise<Map<string, Tool>>;
 
-  constructor(private readonly operations: ToolHandler = toolHandler) {}
+  constructor(private readonly operations: OperationRegistry = toolHandler) {}
 
   private getRegistry(): Promise<Map<string, Tool>> {
     // Operation definitions are static for the life of the process, so the
-    // registry is built once and reused for every discovery call.
+    // registry is built once and reused for every discovery call. A failed
+    // build is not cached: one bad attempt must not poison every later call.
     this.registryPromise ??= this.operations.listTools().then((tools) => {
       const registry = new Map<string, Tool>();
       for (const tool of tools) {
         if (registry.has(tool.name)) {
           throw new Error(`Duplicate operation name in capability registry: ${tool.name}`);
         }
+        if ((GATEWAY_TOOL_NAMES as readonly string[]).includes(tool.name)) {
+          throw new Error(`Operation name collides with a gateway tool and would be unreachable: ${tool.name}`);
+        }
         registry.set(tool.name, tool);
       }
       return registry;
+    }).catch((error) => {
+      this.registryPromise = undefined;
+      logger.error('Failed to build capability registry', {
+        error: error instanceof Error ? error.message : String(error),
+      });
+      throw error;
     });
     return this.registryPromise;
   }
@@ -193,8 +211,9 @@ export class GatewayHandler {
   }
 
   /**
-   * Direct operation names remain callable for clients wired before the
-   * gateway surface existed; they bypass discovery and dispatch as before.
+   * Operation names in the current registry remain callable directly,
+   * bypassing discovery. Names removed in the v2.0.0 consolidation are not;
+   * those calls get the unknown-tool error below.
    */
   private async callLegacyOperation(request: CallToolRequest, name: string): Promise<CallToolResult> {
     const registry = await this.getRegistry();
@@ -264,12 +283,17 @@ export class GatewayHandler {
       }, true);
     }
 
+    // Client-supplied __userQuery inside the operation arguments is dropped;
+    // only the value carried in the request _meta (injected by the server) is
+    // trusted for API-constraint hints.
+    const cleanArgs = { ...(operationArgs ?? {}) };
+    delete cleanArgs.__userQuery;
     return this.operations.callTool({
       method: 'tools/call',
       params: {
         name,
         arguments: {
-          ...(operationArgs ?? {}),
+          ...cleanArgs,
           ...(userQuery ? { __userQuery: userQuery } : {}),
         },
       },
@@ -277,9 +301,10 @@ export class GatewayHandler {
   }
 
   private rankOperations(registry: Map<string, Tool>, query: string, limit: number): Tool[] {
-    const queryTerms = tokenize(query);
+    // Expand once per search; the synonym set depends only on the query.
+    const expanded = expandTerms(tokenize(query));
     return Array.from(registry.values())
-      .map((tool) => ({ tool, score: scoreOperation(tool, queryTerms) }))
+      .map((tool) => ({ tool, score: scoreOperation(tool, expanded) }))
       .filter(({ score }) => score > 0)
       .sort((a, b) => b.score - a.score || a.tool.name.localeCompare(b.tool.name))
       .slice(0, limit)

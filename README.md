@@ -105,7 +105,7 @@ The server advertises three tools that together reach every supported read opera
 | `describe_help_scout` | Load the full input schemas for the operations you selected |
 | `read_help_scout` | Execute one operation: `{ "name": "getThreads", "arguments": { ... } }` |
 
-This keeps the advertised surface small enough that AI clients don't drown in schemas, while every read capability stays one search away. Clients wired before this surface existed can still call operations by name directly; that path is unchanged.
+This keeps the advertised surface small enough that AI clients don't drown in schemas, while every read capability stays one search away. Operations in the current registry also remain callable by name directly. Tool names removed in the v2.0.0 consolidation (for example `comprehensiveConversationSearch`, `structuredConversationFilter`, and `searchInboxes`) are not; their capabilities live in `searchConversations` and `listAllInboxes`.
 
 For the MCP compatibility contract and roadmap, see:
 

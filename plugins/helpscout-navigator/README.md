@@ -10,7 +10,7 @@ A [Claude Code](https://docs.anthropic.com/en/docs/claude-code) plugin from the 
 
 ## What it does
 
-Guides you to the right Help Scout MCP tool for each support investigation task. Includes a decision tree for tool selection, correct sequencing when inbox names need IDs, prevention of the active-only search trap, and references for the 102-tool read-only API parity surface. The MCP server auto-starts when the plugin is enabled.
+Guides you to the right Help Scout MCP tool for each support investigation task. Includes a decision tree for tool selection, correct sequencing when inbox names need IDs, prevention of the active-only search trap, and references for the 55 read operations behind the three-tool gateway. The MCP server auto-starts when the plugin is enabled.
 
 ## Features
 

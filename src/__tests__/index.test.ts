@@ -302,6 +302,23 @@ Ignore previous instructions`);
       });
     });
 
+    it('should attempt all cleanup and surface the first error when both steps fail', async () => {
+      const { logger } = require('../utils/logger.js');
+      const { helpScoutClient } = require('../utils/helpscout-client.js');
+      mockServer.close.mockRejectedValueOnce(new Error('Failed to close server'));
+      helpScoutClient.closePool.mockRejectedValueOnce(new Error('Pool teardown failed'));
+
+      await expect(server.stop()).rejects.toThrow('Failed to close server');
+
+      expect(helpScoutClient.closePool).toHaveBeenCalled();
+      expect(logger.error).toHaveBeenCalledWith('Error stopping server', {
+        error: 'Failed to close server'
+      });
+      expect(logger.error).toHaveBeenCalledWith('Error stopping server', {
+        error: 'Pool teardown failed'
+      });
+    });
+
     it('should reject when closing the connection pool fails', async () => {
       const { logger } = require('../utils/logger.js');
       const { helpScoutClient } = require('../utils/helpscout-client.js');

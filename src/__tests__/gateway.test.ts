@@ -173,6 +173,14 @@ describe('GatewayHandler', () => {
 
       expect(result.isError).toBe(true);
     });
+
+    it('accepts exactly the per-call name limit', async () => {
+      const names = (await gateway.listOperationNames()).slice(0, 10);
+      const result = await callGateway(gateway, DESCRIBE_TOOL_NAME, { names });
+
+      expect(result.isError).toBeUndefined();
+      expect(parsePayload(result).schemas).toHaveLength(10);
+    });
   });
 
   describe(READ_TOOL_NAME, () => {
@@ -201,6 +209,49 @@ describe('GatewayHandler', () => {
       const result = await callGateway(gateway, READ_TOOL_NAME, { arguments: {} });
 
       expect(result.isError).toBe(true);
+    });
+
+    it('dispatches with empty arguments when arguments are omitted', async () => {
+      const result = await callGateway(gateway, READ_TOOL_NAME, { name: 'getServerTime' });
+      const payload = parsePayload(result);
+
+      expect(result.isError).toBeUndefined();
+      expect(payload.source).toBe('mcp_host_clock');
+    });
+
+    it('propagates operation error results unchanged', async () => {
+      const errorResult: CallToolResult = {
+        content: [{ type: 'text', text: '{"error":"upstream failed"}' }],
+        isError: true,
+      };
+      const spy = jest.spyOn(toolHandler, 'callTool').mockResolvedValue(errorResult);
+
+      const result = await callGateway(gateway, READ_TOOL_NAME, {
+        name: 'getServerTime',
+        arguments: {},
+      });
+
+      expect(result.isError).toBe(true);
+      expect(result.content).toEqual(errorResult.content);
+      spy.mockRestore();
+    });
+
+    it('strips client-supplied __userQuery from operation arguments', async () => {
+      const spy = jest.spyOn(toolHandler, 'callTool').mockResolvedValue({
+        content: [{ type: 'text', text: '{}' }],
+      });
+
+      await callGateway(gateway, READ_TOOL_NAME, {
+        name: 'getServerTime',
+        arguments: { __userQuery: 'spoofed by client' },
+      });
+
+      expect(spy).toHaveBeenCalledWith(expect.objectContaining({
+        params: expect.objectContaining({
+          arguments: expect.not.objectContaining({ __userQuery: expect.anything() }),
+        }),
+      }));
+      spy.mockRestore();
     });
 
     it('executes a registered operation end to end', async () => {
@@ -267,6 +318,42 @@ describe('GatewayHandler', () => {
 
       expect(result.isError).toBe(true);
       expect(String(payload.error)).toContain('definitelyNotATool');
+    });
+  });
+
+  describe('registry guards', () => {
+    function stubHandler(tools: Array<{ name: string; description: string }>): ToolHandler {
+      return {
+        listTools: jest.fn().mockResolvedValue(tools),
+        callTool: jest.fn(),
+      } as unknown as ToolHandler;
+    }
+
+    it('rejects duplicate operation names at build time', async () => {
+      const broken = new GatewayHandler(stubHandler([
+        { name: 'getThing', description: 'a' },
+        { name: 'getThing', description: 'b' },
+      ]));
+
+      await expect(broken.listOperationNames()).rejects.toThrow('Duplicate operation name');
+    });
+
+    it('rejects operations that would be shadowed by gateway tool names', async () => {
+      const broken = new GatewayHandler(stubHandler([
+        { name: 'search_help_scout', description: 'colliding operation' },
+      ]));
+
+      await expect(broken.listOperationNames()).rejects.toThrow('collides with a gateway tool');
+    });
+
+    it('does not cache a failed registry build', async () => {
+      const listTools = jest.fn()
+        .mockRejectedValueOnce(new Error('transient failure'))
+        .mockResolvedValue([{ name: 'getThing', description: 'a' }]);
+      const flaky = new GatewayHandler({ listTools, callTool: jest.fn() } as unknown as ToolHandler);
+
+      await expect(flaky.listOperationNames()).rejects.toThrow('transient failure');
+      await expect(flaky.listOperationNames()).resolves.toEqual(['getThing']);
     });
   });
 

@@ -178,9 +178,12 @@ When a user mentions an inbox by name:
 **Approach**:
 \`\`\`
 // Check server instructions for inbox ID (e.g., "Support Inbox" → ID: 12345)
-searchConversations({
-  contentTerms: ["urgent"],
-  inboxId: "12345"
+read_help_scout({
+  name: "searchConversations",
+  arguments: {
+    contentTerms: ["urgent"],
+    inboxId: "12345"
+  }
 })
 \`\`\`
 
@@ -292,12 +295,12 @@ When analyzing across multiple inboxes:
 
 1. First, get the current MCP host time:
    \`\`\`
-   Use the "getServerTime" tool to get the current MCP host timestamp
+   Run the "getServerTime" operation via read_help_scout to get the current MCP host timestamp
    \`\`\`
 
 2. Calculate the date 7 days ago from the current time.
 
-3. ${inboxId ? '' : 'IMPORTANT: If the user mentioned a specific inbox by name, use inbox IDs from the server instructions. If the list may be stale, call "listAllInboxes" to refresh available inbox IDs.\n\n4. '}Search for conversations using the "searchConversations" tool with these parameters:
+3. ${inboxId ? '' : 'IMPORTANT: If the user mentioned a specific inbox by name, use inbox IDs from the server instructions. If the list may be stale, run the "listAllInboxes" operation via read_help_scout to refresh available inbox IDs.\n\n4. '}Search for conversations by running the "searchConversations" operation via read_help_scout with these parameters:
    \`\`\`json
 ${this.formatJsonExample(searchParams)}
    \`\`\`
@@ -365,9 +368,9 @@ This will return conversations created in the last 7 days, sorted by creation da
 
     const prompt = `To find conversations with urgent or priority tags, follow these steps:
 
-1. Get current MCP host time using the "getServerTime" tool.
+1. Get current MCP host time by running the "getServerTime" operation via read_help_scout.
 
-2. ${inboxId ? '' : 'CRITICAL: If the user mentioned a specific inbox by name (e.g., "support inbox"), use inbox IDs from the server instructions. If the list may be stale, call "listAllInboxes" to refresh available inbox IDs.\n\n3. '}Search for conversations with urgent-related tags using the "searchConversations" tool.${timeFilter}
+2. ${inboxId ? '' : 'CRITICAL: If the user mentioned a specific inbox by name (e.g., "support inbox"), use inbox IDs from the server instructions. If the list may be stale, run the "listAllInboxes" operation via read_help_scout to refresh available inbox IDs.\n\n3. '}Search for conversations with urgent-related tags by running the "searchConversations" operation via read_help_scout.${timeFilter}
 
 ${inboxId ? '3' : '4'}. Perform multiple searches for different urgent tag variations:
    
@@ -434,14 +437,14 @@ Note: The exact tag names may vary by organization. Common urgent tag variations
 
     const prompt = `To show activity in inbox ${JSON.stringify(inboxId)} over the last ${hours} hours, follow these steps:
 
-1. Get current MCP host time using the "getServerTime" tool.
+1. Get current MCP host time by running the "getServerTime" operation via read_help_scout.
 
 2. Calculate the timestamp ${hours} hours ago from the current time.
    - Subtract ${hours} hours from the current timestamp
    - Example: If current time is "2025-06-11T15:04:00Z" and hours is ${hours},
      then ${hours} hours ago would be "${this.exampleHoursAgo(hours)}"
 
-3. Search for conversations in the specified inbox using the "searchConversations" tool:
+3. Search for conversations in the specified inbox by running the "searchConversations" operation via read_help_scout:
    \`\`\`json
 ${this.formatJsonExample(searchParams)}
    \`\`\`

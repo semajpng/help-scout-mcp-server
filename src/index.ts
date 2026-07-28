@@ -309,10 +309,12 @@ Note: Inbox auto-discovery failed (${safeError}). Run the listAllInboxes operati
     }
 
     if (failures.length > 0) {
+      for (const failure of failures) {
+        logger.error('Error stopping server', {
+          error: failure instanceof Error ? failure.message : String(failure),
+        });
+      }
       const first = failures[0];
-      logger.error('Error stopping server', {
-        error: first instanceof Error ? first.message : String(first),
-      });
       throw first instanceof Error ? first : new Error(String(first));
     }
 

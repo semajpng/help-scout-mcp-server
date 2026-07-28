@@ -171,9 +171,14 @@ async function initializeServer(): Promise<void> {
 // callTool helper
 // ---------------------------------------------------------------------------
 
-async function callTool(name: string, args: Record<string, unknown> = {}): Promise<any> {
+async function callTool(name: string, args: Record<string, unknown> = {}, options: { allowError?: boolean } = {}): Promise<any> {
   const result = await sendRequest('tools/call', { name, arguments: args });
   const text = result?.content?.[0]?.text;
+  // An isError result must not be mistaken for an empty success: assertions
+  // like "expect 0 results" would pass vacuously on auth or validation errors.
+  if (result?.isError && !options.allowError) {
+    throw new Error(`Tool ${name} returned an error result: ${String(text).slice(0, 300)}`);
+  }
   if (!text) return null;
   try {
     return JSON.parse(text);

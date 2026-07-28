@@ -1644,13 +1644,22 @@ export class ToolHandler {
     let searchedStatuses: string[];
     let pagination: unknown = null;
 
+    let singleStatusLimited = false;
     if (input.status) {
-      // Explicit status: single API call
+      // Explicit status: single API call, preserving page/nextPage semantics.
+      // The v2 API returns fixed 25-item pages and ignores size=, so `limit`
+      // acts as a per-call cap here: slice below 25 and flag it, and callers
+      // wanting more than one page follow nextPage.
       const response = await helpScoutClient.get<PaginatedResponse<Conversation>>('/conversations', {
         ...baseParams,
         status: input.status,
       });
       conversations = response._embedded?.conversations || [];
+      const requestedLimit = input.limit || 50;
+      if (conversations.length > requestedLimit) {
+        conversations = conversations.slice(0, requestedLimit);
+        singleStatusLimited = true;
+      }
       searchedStatuses = [input.status];
       pagination = response.page;
     } else {
@@ -1730,6 +1739,9 @@ export class ToolHandler {
         query: input.query,
         statusesSearched: searchedStatuses,
         inboxScope: this.formatInboxScope(effectiveInboxId, input.inboxId),
+        ...(singleStatusLimited ? {
+          limitApplied: `Results capped at limit=${input.limit || 50}; use nextPage for more`,
+        } : {}),
         clientSideFiltering: clientSideFiltered ? 'createdBefore filter applied after API fetch - see pagination.totalResults for filtered count and pagination.totalAvailable for API total' : undefined,
         searchGuidance: conversations.length === 0 ? [
           'If no results found, try:',
@@ -1799,10 +1811,15 @@ export class ToolHandler {
     // Get ALL threads to find first customer message and latest staff reply.
     // The endpoint is 25/page and ignores `size`, so a single call would only
     // see the first 25 threads and pick the wrong "first"/"latest" on long
-    // conversations. Loop pages for a correct summary.
-    const { items: threads } = await helpScoutClient.getAllPages<Thread>(
+    // conversations. Loop pages, but cap the fan-out: this is a preview tool
+    // and an unbounded loop over a huge conversation risks rate limits and
+    // client timeouts. The truncated flag tells callers when the summary was
+    // computed over a partial thread set.
+    const { items: threads, truncated: threadsTruncated } = await helpScoutClient.getAllPages<Thread>(
       `/conversations/${input.conversationId}/threads`,
       'threads',
+      {},
+      500,
     );
     const customerThreads = threads.filter(t => t.type === 'customer');
     const staffThreads = threads.filter(t => t.type === 'message' && t.createdBy);
@@ -1838,6 +1855,7 @@ export class ToolHandler {
         createdAt: latestStaffReply.createdAt,
         createdBy: latestStaffReply.createdBy,
       } : null,
+      ...(threadsTruncated ? { threadsTruncated: true } : {}),
     };
 
     return {

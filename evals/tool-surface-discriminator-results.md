@@ -66,4 +66,4 @@ The selected `registry-3` shape now ships as production code: `search_help_scout
 | --- | ---: | ---: | ---: | ---: |
 | `production-gateway` | 6/6 | 3 | 4.33 | 998 |
 
-All six jobs passed, including the safe refusal of the unsupported write and the cross-domain organization chain. Average dynamic result cost is in line with the preserved `registry-3` prototype baseline (875 tokens). Direct operation-name calls remain dispatchable for compatibility with clients wired before the gateway surface existed.
+All six jobs passed, including the safe refusal of the unsupported write and the cross-domain organization chain. Average dynamic result cost is in line with the preserved `registry-3` prototype baseline (875 tokens). Operation names in the current 55-entry registry remain directly dispatchable for compatibility; names removed in the v2.0.0 consolidation do not dispatch.

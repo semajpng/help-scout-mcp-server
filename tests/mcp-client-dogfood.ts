@@ -186,7 +186,7 @@ interface Scenario {
 interface ScenarioResult {
   name: string;
   tool: ToolName;
-  status: 'PASS' | 'FAIL';
+  status: 'PASS' | 'FAIL' | 'SKIP';
   durationMs: number;
   detail?: string;
 }
@@ -291,14 +291,18 @@ function parseToolData(result: CallToolResult): unknown {
   }
 }
 
-function getArray(data: unknown, keys: string[]): unknown[] {
-  if (!data || typeof data !== 'object') return [];
+function findArray(data: unknown, keys: string[]): unknown[] | undefined {
+  if (!data || typeof data !== 'object') return undefined;
   const obj = data as Record<string, unknown>;
   for (const key of keys) {
     const value = obj[key];
     if (Array.isArray(value)) return value;
   }
-  return [];
+  return undefined;
+}
+
+function getArray(data: unknown, keys: string[]): unknown[] {
+  return findArray(data, keys) ?? [];
 }
 
 function getObject(data: unknown, key: string): Record<string, unknown> | undefined {
@@ -332,8 +336,10 @@ function requireCondition(condition: unknown, message: string): asserts conditio
 }
 
 function requireArray(data: unknown, keys: string[], label: string): unknown[] {
-  const arr = getArray(data, keys);
-  requireCondition(Array.isArray(arr), `${label} is not an array`);
+  // A present-but-empty array passes; a missing key is response-shape drift
+  // and must fail rather than validate nothing.
+  const arr = findArray(data, keys);
+  requireCondition(arr !== undefined, `${label} response has none of the expected array keys: ${keys.join(', ')}`);
   return arr;
 }
 
@@ -409,7 +415,7 @@ function dateDaysAhead(days: number): string {
 async function runScenario(session: McpDogfoodSession, ctx: DogfoodContext, scenario: Scenario): Promise<void> {
   const skipReason = scenario.skipIf?.(ctx);
   if (skipReason) {
-    results.push({ name: scenario.name, tool: scenario.tool, status: 'PASS', durationMs: 0, detail: `SKIP: ${skipReason}` });
+    results.push({ name: scenario.name, tool: scenario.tool, status: 'SKIP', durationMs: 0, detail: skipReason });
     process.stderr.write(`  ${scenario.tool}: ${scenario.name}... SKIP (${skipReason})\n`);
     return;
   }
@@ -465,7 +471,13 @@ async function assertOperationReachability(session: McpDogfoodSession): Promise<
     const result = await session.callGatewayTool('describe_help_scout', { names });
     requireCondition(!result.isError, `describe_help_scout failed for chunk starting at ${names[0]}`);
     const payload = parseToolData(result) as { schemas?: Array<{ name: string; unknown?: boolean; inputSchema?: unknown }> };
-    for (const schema of payload?.schemas ?? []) {
+    // Shape drift in the describe payload must fail loudly, not verify zero
+    // operations by iterating an empty fallback.
+    requireCondition(
+      Array.isArray(payload?.schemas) && payload.schemas.length === names.length,
+      `describe_help_scout returned ${payload?.schemas?.length ?? 'no'} schemas for ${names.length} requested names (chunk starting at ${names[0]})`
+    );
+    for (const schema of payload.schemas) {
       if (schema.unknown || !schema.inputSchema) unknown.push(schema.name);
     }
   }
@@ -748,7 +760,10 @@ function buildScenarios(): Scenario[] {
       name: 'inbox custom field definitions via include fields',
       args: (ctx) => ({ inboxId: ctx.inboxId, include: ['fields'] }),
       validate: (data) => {
-        requireArray(data, ['customFields', 'fields', 'results'], 'fields');
+        // fetchInboxSubResource wraps the array: { customFields: { fields: [...] } }
+        const customFields = getObject(data, 'customFields');
+        requireCondition(customFields, 'Missing customFields envelope');
+        requireArray(customFields, ['fields'], 'inbox custom fields');
       },
     },
     {
@@ -756,7 +771,10 @@ function buildScenarios(): Scenario[] {
       name: 'inbox folders via include folders',
       args: (ctx) => ({ inboxId: ctx.inboxId, include: ['folders'] }),
       validate: (data) => {
-        requireArray(data, ['folders', 'results'], 'folders');
+        // fetchInboxSubResource wraps the array: { folders: { folders: [...] } }
+        const foldersEnvelope = getObject(data, 'folders');
+        requireCondition(foldersEnvelope, 'Missing folders envelope');
+        requireArray(foldersEnvelope, ['folders'], 'inbox folders');
       },
     },
     {
@@ -2126,6 +2144,12 @@ async function runRedactionMatrix(baseCtx: DogfoodContext): Promise<void> {
       validate: (data) => {
         const firstCustomerMessage = getObject(data, 'firstCustomerMessage');
         const latestStaffReply = getObject(data, 'latestStaffReply');
+        // The redaction gate must actually assert on a body: a shape change
+        // that drops both bodies would otherwise pass without checking anything.
+        requireCondition(
+          firstCustomerMessage?.body || latestStaffReply?.body,
+          'Redaction check needs at least one message body in the summary; fixture conversation has none'
+        );
         if (firstCustomerMessage?.body) {
           requireCondition(isRedactedBody(firstCustomerMessage.body), `First customer body not hidden: ${String(firstCustomerMessage.body).slice(0, 80)}`);
         }
@@ -2144,10 +2168,10 @@ async function runRedactionMatrix(baseCtx: DogfoodContext): Promise<void> {
       args: (scenarioCtx) => ({ conversationId: scenarioCtx.conversationId ?? '1', limit: 5 }),
       validate: (data) => {
         const threads = requireArray(data, ['threads'], 'threads') as JsonObject[];
-        for (const thread of threads) {
-          if (thread.body) {
-            requireCondition(isRedactedBody(thread.body), `Thread body not hidden: ${String(thread.body).slice(0, 80)}`);
-          }
+        const bodied = threads.filter((thread) => thread.body);
+        requireCondition(bodied.length > 0, 'Redaction check needs at least one thread with a body; fixture conversation has none');
+        for (const thread of bodied) {
+          requireCondition(isRedactedBody(thread.body), `Thread body not hidden: ${String(thread.body).slice(0, 80)}`);
         }
       },
     },
@@ -2157,10 +2181,10 @@ async function runRedactionMatrix(baseCtx: DogfoodContext): Promise<void> {
       args: (scenarioCtx) => ({ conversationId: scenarioCtx.conversationId ?? '1', limit: 5, includeSystemActors: true }),
       validate: (data) => {
         const threads = requireArray(data, ['threads'], 'v3 threads') as JsonObject[];
-        for (const thread of threads) {
-          if (thread.body) {
-            requireCondition(isRedactedBody(thread.body), `V3 thread body not hidden: ${String(thread.body).slice(0, 80)}`);
-          }
+        const bodied = threads.filter((thread) => thread.body);
+        requireCondition(bodied.length > 0, 'Redaction check needs at least one v3 thread with a body; fixture conversation has none');
+        for (const thread of bodied) {
+          requireCondition(isRedactedBody(thread.body), `V3 thread body not hidden: ${String(thread.body).slice(0, 80)}`);
         }
       },
     },
@@ -2261,6 +2285,7 @@ function printSummary(ctx: DogfoodContext): void {
   const byStatus = {
     pass: results.filter((result) => result.status === 'PASS'),
     fail: results.filter((result) => result.status === 'FAIL'),
+    skip: results.filter((result) => result.status === 'SKIP'),
   };
   const byTool = new Map<string, ScenarioResult[]>();
   for (const result of results) {
@@ -2282,8 +2307,15 @@ function printSummary(ctx: DogfoodContext): void {
     }
   }
 
+  if (byStatus.skip.length > 0) {
+    process.stderr.write('\nSkipped (missing fixtures reduce coverage; seed or configure them):\n');
+    for (const skipped of byStatus.skip) {
+      process.stderr.write(`  [SKIP] ${skipped.tool}: ${skipped.name}: ${skipped.detail}\n`);
+    }
+  }
+
   const totalMs = results.reduce((sum, result) => sum + result.durationMs, 0);
-  process.stderr.write(`\n${byStatus.pass.length} passed, ${byStatus.fail.length} failed, ${results.length} total`);
+  process.stderr.write(`\n${byStatus.pass.length} passed, ${byStatus.fail.length} failed, ${byStatus.skip.length} skipped, ${results.length} total`);
   process.stderr.write(` (${(totalMs / 1000).toFixed(1)}s summed tool time)\n\n`);
   printFixtureHints(ctx);
 
