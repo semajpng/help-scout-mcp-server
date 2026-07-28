@@ -164,7 +164,7 @@ function argumentsMatch(outcome, actual) {
 }
 
 export function calledOperation(candidate, functionName, args) {
-  if (functionName === 'call_tool') {
+  if (functionName === 'call_tool' || functionName === 'read_help_scout') {
     return { operation: args.name, arguments: args.arguments || {} };
   }
   if (candidate.name === 'domains-8') {

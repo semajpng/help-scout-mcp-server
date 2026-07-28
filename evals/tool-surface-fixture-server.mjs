@@ -6,6 +6,7 @@ import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprot
 
 import { fixtureExecutor } from './run-tool-surface-discriminator.mjs';
 import { createToolSurfacePrototypes } from './tool-surface-prototype.mjs';
+import { createProductionGatewayCandidate } from './production-gateway-candidate.mjs';
 
 const candidateName = process.env.CANDIDATE;
 const traceFile = process.env.TRACE_FILE;
@@ -15,6 +16,7 @@ if (!candidateName || !traceFile) {
 }
 
 const { candidates } = await createToolSurfacePrototypes({ executeOperation: fixtureExecutor });
+candidates.push(await createProductionGatewayCandidate({ executeOperation: fixtureExecutor }));
 const candidate = candidates.find((item) => item.name === candidateName);
 
 if (!candidate) {

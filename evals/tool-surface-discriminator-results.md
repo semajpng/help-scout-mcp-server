@@ -55,3 +55,15 @@ A `registry-2` control merged search and schema inspection. Its `search_tools` r
 The three-result control missed `getConversation`, which ranked fourth or fifth for ordinary conversation wording. The five-result control corrected that retrieval-recall problem and passed all six jobs. It also returned enough schema material to use about 91 percent more advertised-plus-dynamic context than the preserved `registry-3` Claude baseline.
 
 The control supports retaining `registry-3`. The separate schema-inspection step costs one additional advertised tool and about 107 advertised tokens, but avoids returning several unselected schemas on every search. This is still a directional six-job screen, not release certification.
+
+## Production gateway validation
+
+Date: 2026-07-28
+
+The selected `registry-3` shape now ships as production code: `search_help_scout`, `describe_help_scout`, and `read_help_scout` in `src/tools/gateway.ts`, advertised by default over the internal 55-operation registry. The same six frozen jobs ran through the actual Claude stdio MCP client against the compiled production gateway (candidate `production-gateway`, fixture-backed execution).
+
+| Candidate | Passed | Advertised tools | Average turns | Average dynamic result tokens |
+| --- | ---: | ---: | ---: | ---: |
+| `production-gateway` | 6/6 | 3 | 4.33 | 998 |
+
+All six jobs passed, including the safe refusal of the unsupported write and the cross-domain organization chain. Average dynamic result cost is in line with the preserved `registry-3` prototype baseline (875 tokens). Direct operation-name calls remain dispatchable for compatibility with clients wired before the gateway surface existed.

@@ -11,6 +11,7 @@ import {
   refusalIsSafe,
 } from './run-tool-surface-discriminator.mjs';
 import { createToolSurfacePrototypes } from './tool-surface-prototype.mjs';
+import { createProductionGatewayCandidate } from './production-gateway-candidate.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const SERVER = resolve(HERE, 'tool-surface-fixture-server.mjs');
@@ -139,6 +140,7 @@ function runCell(candidate, job) {
 
 async function main() {
   const { candidates } = await createToolSurfacePrototypes();
+  candidates.push(await createProductionGatewayCandidate());
   const selectedCandidates = candidates.filter((candidate) => CANDIDATES.includes(candidate.name));
   const selectedJobs = SELECTED_JOBS.length
     ? jobs.filter((job) => SELECTED_JOBS.includes(job.id))
