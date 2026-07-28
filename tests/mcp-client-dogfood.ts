@@ -121,6 +121,11 @@ const EXPECTED_TOOLS = [
 type ToolName = typeof EXPECTED_TOOLS[number];
 type JsonObject = Record<string, unknown>;
 
+// The advertised surface: three gateway tools over the operation registry.
+// Operations in EXPECTED_TOOLS execute through read_help_scout.
+const GATEWAY_TOOLS = ['search_help_scout', 'describe_help_scout', 'read_help_scout'] as const;
+const DESCRIBE_CHUNK_SIZE = 10;
+
 interface DogfoodContext {
   tools: Tool[];
   toolNames: Set<string>;
@@ -168,6 +173,8 @@ interface Scenario {
   tool: ToolName;
   args: JsonObject | ((ctx: DogfoodContext) => JsonObject);
   expectError?: boolean;
+  /** Call the operation by its direct name instead of read_help_scout (legacy compatibility path). */
+  direct?: boolean;
   skipIf?: (ctx: DogfoodContext) => string | undefined;
   validate: (data: unknown, result: CallToolResult, ctx: DogfoodContext) => void;
   after?: (data: unknown, result: CallToolResult, ctx: DogfoodContext, session: McpDogfoodSession) => void | Promise<void>;
@@ -241,7 +248,18 @@ class McpDogfoodSession {
     };
   }
 
-  async callTool(name: ToolName, args: JsonObject): Promise<CallToolResult> {
+  async callTool(name: ToolName, args: JsonObject, direct = false): Promise<CallToolResult> {
+    const request = direct
+      ? { name, arguments: args }
+      : { name: 'read_help_scout', arguments: { name, arguments: args } };
+    return this.client.callTool(
+      request,
+      undefined,
+      { timeout: REQUEST_TIMEOUT_MS, resetTimeoutOnProgress: true, maxTotalTimeout: REQUEST_TIMEOUT_MS },
+    ) as Promise<CallToolResult>;
+  }
+
+  async callGatewayTool(name: string, args: JsonObject): Promise<CallToolResult> {
     return this.client.callTool(
       { name, arguments: args },
       undefined,
@@ -398,7 +416,7 @@ async function runScenario(session: McpDogfoodSession, ctx: DogfoodContext, scen
   process.stderr.write(`  ${label}...`);
   const start = Date.now();
   try {
-    const result = await session.callTool(scenario.tool, args);
+    const result = await session.callTool(scenario.tool, args, scenario.direct ?? false);
     const data = parseToolData(result);
     if (scenario.expectError && !result.isError && !(data && typeof data === 'object' && 'error' in data)) {
       throw new Error('Expected tool error, but call succeeded');
@@ -425,11 +443,38 @@ async function runScenario(session: McpDogfoodSession, ctx: DogfoodContext, scen
 
 function assertToolDiscovery(ctx: DogfoodContext): void {
   const discovered = [...ctx.toolNames].sort();
-  const expected = [...EXPECTED_TOOLS].sort();
+  const expected = [...GATEWAY_TOOLS].sort();
   const missing = expected.filter((name) => !ctx.toolNames.has(name));
-  const extra = discovered.filter((name) => !EXPECTED_TOOLS.includes(name as ToolName));
-  requireCondition(missing.length === 0, `Missing expected tools: ${missing.join(', ')}`);
-  requireCondition(extra.length === 0, `New tools need dogfood scenarios: ${extra.join(', ')}`);
+  const extra = discovered.filter((name) => !(GATEWAY_TOOLS as readonly string[]).includes(name));
+  requireCondition(missing.length === 0, `Missing advertised gateway tools: ${missing.join(', ')}`);
+  requireCondition(extra.length === 0, `Unexpected advertised tools beyond the gateway surface: ${extra.join(', ')}`);
+}
+
+/**
+ * Every operation in EXPECTED_TOOLS must be reachable through the gateway:
+ * describe_help_scout must return a schema (not unknown) for each, and
+ * search_help_scout must return usable results for a common intent.
+ */
+async function assertOperationReachability(session: McpDogfoodSession): Promise<void> {
+  const unknown: string[] = [];
+  for (let start = 0; start < EXPECTED_TOOLS.length; start += DESCRIBE_CHUNK_SIZE) {
+    const names = EXPECTED_TOOLS.slice(start, start + DESCRIBE_CHUNK_SIZE);
+    const result = await session.callGatewayTool('describe_help_scout', { names });
+    requireCondition(!result.isError, `describe_help_scout failed for chunk starting at ${names[0]}`);
+    const payload = parseToolData(result) as { schemas?: Array<{ name: string; unknown?: boolean; inputSchema?: unknown }> };
+    for (const schema of payload?.schemas ?? []) {
+      if (schema.unknown || !schema.inputSchema) unknown.push(schema.name);
+    }
+  }
+  requireCondition(unknown.length === 0, `Operations not reachable through the gateway registry: ${unknown.join(', ')}`);
+
+  const search = await session.callGatewayTool('search_help_scout', { query: 'find conversations about billing' });
+  requireCondition(!search.isError, 'search_help_scout returned an error for a common intent');
+  const searchPayload = parseToolData(search) as { results?: Array<{ name: string }> };
+  requireCondition(
+    (searchPayload?.results ?? []).some((entry) => entry.name === 'searchConversations'),
+    'search_help_scout did not surface searchConversations for a billing intent',
+  );
 }
 
 function assertScenarioCoverage(scenarios: Scenario[]): void {
@@ -450,6 +495,16 @@ function buildScenarios(): Scenario[] {
         requireCondition(typeof obj?.unixTime === 'number', 'Missing unixTime');
         ctx.createdAfter = dateDaysAgo(365);
         ctx.createdBefore = dateDaysAhead(1);
+      },
+    },
+    {
+      tool: 'getServerTime',
+      name: 'legacy direct operation name still dispatches',
+      args: {},
+      direct: true,
+      validate: (data) => {
+        const obj = data as Record<string, unknown>;
+        requireCondition(typeof obj?.isoTime === 'string', 'Legacy direct call missing isoTime');
       },
     },
     {
@@ -2038,6 +2093,7 @@ async function runMainMatrix(): Promise<DogfoodContext> {
 
   try {
     assertToolDiscovery(ctx);
+    await assertOperationReachability(session);
     assertScenarioCoverage(scenarios);
     for (const scenario of scenarios) {
       await runScenario(session, ctx, scenario);
