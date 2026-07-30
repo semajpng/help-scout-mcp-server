@@ -7,87 +7,29 @@ description: Use when searching HelpScout tickets, customers, or organizations. 
 
 Guide for correctly using the Help Scout MCP gateway. Prevents common mistakes and ensures complete search results.
 
-## First Step: Diagnose Setup
+## First Step: Check the Tools Are There
 
-Follow these steps IN ORDER. Do not skip ahead.
+Look for these three tools among your available tools (clients usually prefix them with the server name, e.g. `mcp__helpscout__search_help_scout`):
 
----
+- `search_help_scout`
+- `describe_help_scout`
+- `read_help_scout`
 
-### Step 1: Check if MCP Tools are Available
+**If they are available:** ✅ Skip to "Critical Rules". You're ready to go.
 
-Look for these three tools in your available tools:
-- `mcp__helpscout__search_help_scout`
-- `mcp__helpscout__describe_help_scout`
-- `mcp__helpscout__read_help_scout`
+**If they are NOT available**, the Help Scout MCP server is not connected in this client. Tell the user, and point them at the setup for their client (see the [server README](https://github.com/drewburchfield/help-scout-mcp-server#quick-start)):
 
-**If tools ARE available:** ✅ Skip to "Critical Rules" section. You're ready to go.
+- **Claude Desktop / claude.ai (including Cowork):** install the Desktop Extension (`.mcpb` from releases), enter the App ID and App Secret in its settings, restart the app.
+- **Claude Code and other CLI clients:** register the server (for example `claude mcp add helpscout --env HELPSCOUT_APP_ID=... --env HELPSCOUT_APP_SECRET=... -- npx -y help-scout-mcp-server`). Credentials come from the client's process environment, so after setting them, fully restart the client from a fresh shell; a client started before the variables existed never sees them.
+- **Credentials** come from Help Scout: profile icon > **My Apps** > **Create Private App**, then copy the App ID and App Secret.
 
-**If tools are NOT available:** Continue to Step 2.
-
----
-
-### Step 2: Check if Credentials are Set
-
-Run this command:
-```bash
-echo "HELPSCOUT_APP_ID: ${HELPSCOUT_APP_ID:+[SET]}" && echo "HELPSCOUT_APP_SECRET: ${HELPSCOUT_APP_SECRET:+[SET]}"
-```
-
-**If both show `[SET]`:** Credentials exist but MCP didn't start. Go to Step 4.
-
-**If either is blank:** Credentials are missing. Go to Step 3.
-
----
-
-### Step 3: Set Up Credentials
-
-Tell the user:
-
-> **HelpScout credentials are not configured.**
->
-> **Get your credentials:**
-> 1. Go to HelpScout → Your Profile → My Apps
-> 2. Create a new app (or use existing)
-> 3. Copy the **App ID** and **App Secret**
->
-> **Add to your shell profile** (`~/.zshrc` or `~/.bashrc`):
-> ```bash
-> export HELPSCOUT_APP_ID="your-app-id-here"
-> export HELPSCOUT_APP_SECRET="your-app-secret-here"
-> ```
->
-> **Then go to Step 4.**
-
----
-
-### Step 4: Restart Correctly (IMPORTANT)
-
-⚠️ **This is where most people get stuck.**
-
-The MCP server inherits environment variables from Claude Code's process. If Claude Code was started before the credentials were set, it won't have them.
-
-Tell the user:
-
-> **You must restart BOTH your terminal AND Claude Code:**
->
-> 1. **Quit Claude Code completely** (not just close the window)
-> 2. **Close your terminal completely** (not just the tab)
-> 3. **Open a new terminal** (this loads your updated `.zshrc`)
-> 4. **Start Claude Code from this new terminal**
->
-> ```bash
-> claude
-> ```
->
-> The Help Scout MCP server will now start with the correct credentials.
-
-**Do not proceed with HelpScout operations until the MCP tools are available.**
+**Do not proceed with HelpScout operations until the tools are available.** If the tools are present but every call fails with an authentication error, the credentials are wrong; re-check them in the client's server config.
 
 ---
 
 ## Overview
 
-The Help Scout MCP server advertises exactly three tools. Behind them sits a registry of 55 read-only operations covering conversations, customers, organizations, reports, metadata, and Docs:
+The Help Scout MCP server advertises three tools. Behind them sits a registry of 55 read operations covering conversations, customers, organizations, reports, metadata, and Docs:
 
 | Tool | Purpose |
 |------|---------|
@@ -96,6 +38,8 @@ The Help Scout MCP server advertises exactly three tools. Behind them sits a reg
 | `read_help_scout` | Execute one operation: `{"name": "<operation>", "arguments": {...}}` |
 
 **The flow is always:** search for operations → describe the one(s) you picked → execute with `read_help_scout`.
+
+A fourth tool, `write_help_scout`, appears only when the operator enabled writes. If you do not see it, this install is read-only. See [Write Operations](#write-operations-only-when-enabled).
 
 **Core problems this skill solves:**
 1. Users guess argument shapes instead of calling `describe_help_scout` first
@@ -280,6 +224,41 @@ read_help_scout(name: "getOrganizationConversations", arguments: { organizationI
 
 ---
 
+## Write Operations (only when enabled)
+
+Writes are off unless the operator set `HELPSCOUT_ENABLE_WRITES=true`. When they are on, `write_help_scout` is advertised alongside the three read tools and the same gateway flow applies:
+
+1. `search_help_scout(query: "<intent>")`. Write operations come back labeled with their access and mutation class, for example `write (reversible)`.
+2. `describe_help_scout(names: ["<operation>"])` for the schema, which also reports `mutationClass` and `tier`.
+3. `write_help_scout(name: "<operation>", arguments: {...})` to execute.
+
+**Draft first.** `createDraftReply` saves an unsent draft and has no parameter that could send it. `createNote` is internal to your team. Neither notifies the customer. Compose in a draft, show it to the user, and stop there.
+
+**Never send on your own initiative.** `sendReply` and `publishDraft` email the customer and cannot be recalled. Call them only when the user has explicitly asked to send. They need a second gate (`HELPSCOUT_ENABLE_CUSTOMER_VISIBLE_WRITES=true`) plus all three confirmation fields on every call, as siblings of `arguments`:
+
+```javascript
+write_help_scout({
+  name: "sendReply",
+  arguments: { conversationId: "12345", text: "Thanks for your patience..." },
+  confirm: true,
+  confirmOperation: "sendReply",
+  targetId: "12345"
+})
+```
+
+Missing, false, or mismatched confirmation is refused before anything reaches Help Scout.
+
+**Preview anything.** Add `dryRun: true` beside `arguments` to see the exact request that would be sent without contacting Help Scout.
+
+| Tier | Gate | Operations |
+|------|------|------------|
+| 1 | `HELPSCOUT_ENABLE_WRITES` | `createNote`, `createDraftReply`, `updateConversationStatus`, `assignConversation`, `unassignConversation`, `addConversationTags`, `removeConversationTags`, `updateConversationFields`, `snoozeConversation`, `unsnoozeConversation`, `moveConversation` |
+| 2 | plus `HELPSCOUT_ENABLE_CUSTOMER_VISIBLE_WRITES` | `sendReply`, `publishDraft` |
+
+Deletes and admin configuration writes are not exposed under any flag. See [references/tool-reference.md](references/tool-reference.md) for the full operation list.
+
+---
+
 ## Anti-Patterns (What NOT to Do)
 
 | Mistake | Why It Fails | Correct Approach |
@@ -290,7 +269,9 @@ read_help_scout(name: "getOrganizationConversations", arguments: { organizationI
 | Passing an inbox name as `inboxId` | IDs are numeric strings, not names | Use the ID from server instructions |
 | Adding `status: "active"` to keyword searches "to be safe" | Default already covers active + pending + closed | Omit `status` unless narrowing on purpose |
 | Hardcoding "today" in date filters | Server clock may differ | `getServerTime` first |
-| Asking any operation to create or modify data | Every operation is read-only | Do it in the Help Scout UI |
+| Calling `read_help_scout` for a write operation | `read_help_scout` refuses anything that changes state | `write_help_scout`, when writes are enabled |
+| Putting `confirm` or `dryRun` inside `arguments` | They are envelope fields; the call is refused, not silently corrected | Put them beside `arguments` |
+| Sending a customer reply the user did not ask for | `sendReply` emails immediately and cannot be recalled | `createDraftReply`, then let the user decide |
 
 See [references/common-mistakes.md](references/common-mistakes.md) for more anti-patterns.
 

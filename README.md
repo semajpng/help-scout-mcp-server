@@ -17,37 +17,41 @@ Built by a Help Scout customer who wanted to give his support team superpowers. 
 - **Search and retrieve Docs articles** from the separate Help Scout Docs API
 - **Pull Help Scout reports and metadata** for company, conversations, Docs, channels, productivity, happiness, users, teams, system users, statuses, routing, and webhooks
 - **Monitor inbox activity** across multiple inboxes with a single query
+- **Take action with opt-in writes**: draft replies, internal notes, tags, status, assignment, snooze, and more, all off by default
 - **Reduce message payloads** with optional message content redaction and scoped inbox access
 
 ## Quick Start
 
-### Claude Cowork (Recommended)
+### Claude Desktop & Claude Cowork (Recommended)
 
-Install the **helpscout-navigator** plugin. It auto-starts the MCP server and includes **navigation skills** that help Claude pick the right search tool for your query.
-
-1. Open Cowork and go to **Customize** > **Browse plugins** > **Personal**
-2. Click **+** > **Add marketplace from GitHub** and enter `drewburchfield/help-scout-mcp-server`
-3. Install **helpscout-navigator** from the marketplace
-4. Add your Help Scout credentials ([step-by-step guide](guides/cowork-setup.md))
-
-> The plugin bundles guided skills, session hooks, and tool selection guidance on top of the MCP server. Other install methods give you the tools; this one also teaches the AI how to use them well.
-
-### Claude Desktop
-
-**One-click install** using [Desktop Extensions](https://www.anthropic.com/engineering/desktop-extensions):
+**One-click install** using [Desktop Extensions](https://www.anthropic.com/engineering/desktop-extensions). One install covers both Chat and Cowork sessions in the Claude desktop app.
 
 1. Download the latest [`.mcpb` file from releases](https://github.com/drewburchfield/help-scout-mcp-server/releases)
 2. Double-click to install (or drag into Claude Desktop)
-3. Enter your Help Scout App ID and App Secret when prompted
+3. Enter your Help Scout App ID and App Secret in the extension settings; the settings also carry toggles for message redaction and the opt-in write surface
+4. Restart Claude Desktop
+
+If the tools don't show up in a Cowork session, update the desktop app to the latest version and start a fresh session. ([Cowork walkthrough](guides/cowork-setup.md))
+
+Optional: add the **helpscout-navigator** skill so Claude picks the right operation faster. Go to **Customize**, click **+** > **Add marketplace from GitHub**, enter `drewburchfield/help-scout-mcp-server`, and install **helpscout-navigator**.
 
 ### Claude Code
 
-The same **helpscout-navigator** plugin works in Claude Code with the same navigation skills.
+Register the server, then optionally add the **helpscout-navigator** skill, which teaches Claude to pick the right operation for each query.
 
-1. Run `/plugin` in Claude Code to open the marketplace
-2. Search for **helpscout-navigator** and install it
-3. Set `HELPSCOUT_APP_ID` and `HELPSCOUT_APP_SECRET` as environment variables
-4. Restart Claude Code
+```bash
+claude mcp add helpscout \
+  --env HELPSCOUT_APP_ID=your-app-id \
+  --env HELPSCOUT_APP_SECRET=your-app-secret \
+  -- npx -y help-scout-mcp-server
+```
+
+Then, for the navigation skill:
+
+1. Run `/plugin marketplace add drewburchfield/help-scout-mcp-server`
+2. Run `/plugin install helpscout-navigator`
+
+> The server alone gives you the tools; the skill also teaches the AI how to use them well.
 
 ### For Cursor, VS Code, and Other MCP Clients
 
@@ -58,7 +62,7 @@ Add to your MCP client's config file (e.g., `claude_desktop_config.json`, `.curs
   "mcpServers": {
     "helpscout": {
       "command": "npx",
-      "args": ["help-scout-mcp-server@2.0.0"],
+      "args": ["help-scout-mcp-server@2.1.0"],
       "env": {
         "HELPSCOUT_APP_ID": "your-app-id",
         "HELPSCOUT_APP_SECRET": "your-app-secret",
@@ -75,16 +79,15 @@ Add to your MCP client's config file (e.g., `claude_desktop_config.json`, `.curs
 docker run -e HELPSCOUT_APP_ID="your-app-id" \
   -e HELPSCOUT_APP_SECRET="your-app-secret" \
   -e HELPSCOUT_DOCS_API_KEY="optional-docs-api-key" \
-  drewburchfield/help-scout-mcp-server:2.0.0
+  drewburchfield/help-scout-mcp-server:2.1.0
 ```
 
 ## Getting Your API Credentials
 
 1. Go to **Help Scout** > **My Apps** > **Create Private App**
-2. Select at minimum: **Read** access to Mailboxes, Conversations, Customers, and Organizations
-3. Copy your **App ID** and **App Secret**
+2. Copy your **App ID** and **App Secret**
 
-> Help Scout uses OAuth2 Client Credentials flow exclusively. Personal Access Tokens are not supported.
+> Help Scout uses OAuth2 Client Credentials flow exclusively. Personal Access Tokens are not supported. The app authenticates as the user who created it, with that user's permissions; there is no separate scope selection, which is why the server's own write gating defaults to off.
 
 | Help Scout UI | Environment Variable |
 |---------------|---------------------|
@@ -106,6 +109,8 @@ The server advertises three tools that together reach every supported read opera
 | `read_help_scout` | Execute one operation: `{ "name": "getThreads", "arguments": { ... } }` |
 
 This keeps the advertised surface small enough that AI clients don't drown in schemas, while every read capability stays one search away. Operations in the current registry also remain callable by name directly. Tool names removed in the v2.0.0 consolidation (for example `comprehensiveConversationSearch`, `structuredConversationFilter`, and `searchInboxes`) are not; their capabilities live in `searchConversations` and `listAllInboxes`.
+
+An optional fourth tool, `write_help_scout`, appears only when an operator turns writes on. See [Write operations (opt-in)](#write-operations-opt-in).
 
 For the MCP compatibility contract and roadmap, see:
 
@@ -141,6 +146,35 @@ Run any of these via `read_help_scout`:
 
 Inboxes are auto-discovered when the server connects. AI agents get inbox IDs in their instructions automatically, so no lookup step is needed.
 
+## Write operations (opt-in)
+
+A default install is read-only. It advertises the three tools above and nothing else, unchanged from 2.0. Writes exist only after an operator sets a flag.
+
+| Flag | What it adds |
+|------|--------------|
+| `HELPSCOUT_ENABLE_WRITES=true` | A fourth tool, `write_help_scout`, carrying 11 tier-1 conversation operations |
+| `HELPSCOUT_ENABLE_CUSTOMER_VISIBLE_WRITES=true` | Two more operations on that same tool: `sendReply` and `publishDraft` |
+
+Tier 1 covers draft replies, internal notes, status changes, assign and unassign, adding and removing tags, custom field values, snooze and unsnooze, and moving a conversation to another inbox. None of it emails anyone: a draft is saved unsent, and a note is visible to teammates only.
+
+Tier 2 is the only path that reaches a customer, and it needs both flags. Every call to `sendReply` or `publishDraft` must also carry confirmation naming the operation and the target:
+
+```json
+{
+  "name": "sendReply",
+  "arguments": { "conversationId": "12345", "text": "..." },
+  "confirm": true,
+  "confirmOperation": "sendReply",
+  "targetId": "12345"
+}
+```
+
+Missing, false, or mismatched confirmation is refused before anything reaches Help Scout. Deletes and admin configuration writes are deliberately not exposed, under any flag.
+
+Set `"dryRun": true` on any write to validate the arguments and see the exact request that would be sent, without contacting Help Scout.
+
+Full rules: [write tool contract](guides/architecture/mcp-tool-contract.md#write-tool-contract).
+
 ## Configuration
 
 | Variable | Description | Default |
@@ -152,6 +186,8 @@ Inboxes are auto-discovered when the server connects. AI agents get inbox IDs in
 | `HELPSCOUT_DOCS_API_KEY` | Optional Docs API key for knowledge base tools | None |
 | `HELPSCOUT_DOCS_BASE_URL` | Help Scout Docs API endpoint | `https://docsapi.helpscout.net/v1/` |
 | `REDACT_MESSAGE_CONTENT` | Replace message bodies with placeholders | `false` |
+| `HELPSCOUT_ENABLE_WRITES` | Advertise `write_help_scout` with the tier-1 conversation writes | Unset (`false`) |
+| `HELPSCOUT_ENABLE_CUSTOMER_VISIBLE_WRITES` | Also enable `sendReply` and `publishDraft`, which email the customer | Unset (`false`) |
 | `CACHE_TTL_SECONDS` | Cache duration for API responses | `300` |
 | `LOG_LEVEL` | Logging verbosity (`error`, `warn`, `info`, `debug`) | `info` |
 
@@ -161,7 +197,7 @@ Works with any [MCP-compatible](https://modelcontextprotocol.io) client:
 
 | Category | Clients |
 |----------|---------|
-| **AI Assistants** | Claude Desktop, Goose, and other MCP-enabled assistants |
+| **AI Assistants** | Claude Desktop (Chat and Cowork), Goose, and other MCP-enabled assistants |
 | **Code Editors** | Cursor, VS Code, Windsurf, Continue.dev |
 | **Command Line** | Claude Code, Codex, Gemini CLI, OpenCode |
 | **Custom** | Any application implementing the MCP standard |
@@ -192,7 +228,7 @@ curl -X POST https://api.helpscout.net/v2/oauth2/token \
 **Need more detail?** Enable debug logging:
 
 ```bash
-LOG_LEVEL=debug npx help-scout-mcp-server@2.0.0
+LOG_LEVEL=debug npx help-scout-mcp-server@2.1.0
 ```
 
 ## Development
