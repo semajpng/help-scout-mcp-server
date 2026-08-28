@@ -5,14 +5,14 @@
   },
   "metadata": {
     "description": "Navigation skill for the Help Scout MCP server, with added protection for customer/conversation details",
-    "version": "1.0.0"
+    "version": "2.1.0"
   },
   "plugins": [
     {
       "name": "wooting-helpscout-navigator",
       "source": "./skills",
       "description": "Navigation skill for the Help Scout MCP server: tool selection, correct sequencing, and the opt-in write surface. Skill only; set up the MCP server separately in your client.",
-      "version": "1.0.0",
+      "version": "2.1.0",
       "author": {
         "name": "James from Wooting"
       },
