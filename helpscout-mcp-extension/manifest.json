@@ -1,6 +1,6 @@
 {
   "manifest_version": "1.0",
-  "name": "help-scout-mcp-server-lite",
+  "name": "help-scout-mcp-server",
   "display_name": "Wooting Help Scout MCP Server",
   "version": "2.1.0",
   "description": "Connect Claude to Help Scout with full read coverage: reports, metadata, and Docs through a compact three-tool surface.",
