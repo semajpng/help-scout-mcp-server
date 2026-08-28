@@ -377,6 +377,8 @@ export class ToolHandler {
 
   async listTools(): Promise<Tool[]> {
     const tools: Tool[] = [
+      //Removed ability to search and get conversations
+      /*
       {
         name: 'searchConversations',
         description: 'Search and list conversations. Filter by status, date range, inbox, or tags, and search content with contentTerms/subjectTerms, email/emailDomain, customerIds, assignedTo, folderId, or conversationNumber. Searches all statuses by default.',
@@ -490,9 +492,6 @@ export class ToolHandler {
           },
         },
       },
-      
-      // Removed ability to get Conversation
-      /*
       {
         name: 'getConversation',
         description: 'Get the raw Help Scout conversation object by ID. Optionally embeds threads for direct API parity; use getThreads when full thread pagination is needed. Set includeSystemActors to distinguish user, team, and system_user person types.',
@@ -872,6 +871,10 @@ export class ToolHandler {
           required: ['inboxId', 'replyId'],
         },
       },
+      
+      // Remove ability to get source information as well as attachments
+
+      /*
       {
         name: 'getOriginalSource',
         description: 'Get the original source for a Help Scout conversation thread. Set format to "rfc822" for raw email source, or "json" (default) for parsed source.',
@@ -909,6 +912,8 @@ export class ToolHandler {
           required: ['conversationId', 'attachmentId'],
         },
       },
+      */
+
       {
         name: 'listWorkflows',
         description: 'List Help Scout workflows. Use to inspect account workflow configuration and discover workflow IDs.',
@@ -1369,11 +1374,10 @@ export class ToolHandler {
       let result: CallToolResult;
 
       switch (request.params.name) {
+        /*
         case 'searchConversations':
           result = await this.searchConversations(request.params.arguments || {});
           break;
-        
-        /*
         case 'getConversation':
           result = await this.getConversation(request.params.arguments || {});
           break;
@@ -1455,6 +1459,8 @@ export class ToolHandler {
         case 'getSavedReply':
           result = await this.getSavedReply(request.params.arguments || {});
           break;
+        
+        /*
         case 'getOriginalSource':
           result = await this.getOriginalSource(request.params.arguments || {});
           break;
@@ -1464,6 +1470,8 @@ export class ToolHandler {
         case 'downloadAttachmentFile':
           result = await this.downloadAttachmentFile(request.params.arguments || {});
           break;
+        */
+        
         case 'listWorkflows':
           result = await this.listWorkflows(request.params.arguments || {});
           break;
