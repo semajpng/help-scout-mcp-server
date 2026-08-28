@@ -377,7 +377,7 @@ export class ToolHandler {
 
   async listTools(): Promise<Tool[]> {
     const tools: Tool[] = [
-      /*{
+      {
         name: 'searchConversations',
         description: 'Search and list conversations. Filter by status, date range, inbox, or tags, and search content with contentTerms/subjectTerms, email/emailDomain, customerIds, assignedTo, folderId, or conversationNumber. Searches all statuses by default.',
         inputSchema: {
@@ -490,6 +490,9 @@ export class ToolHandler {
           },
         },
       },
+      
+      // Removed ability to get Conversation
+      /*
       {
         name: 'getConversation',
         description: 'Get the raw Help Scout conversation object by ID. Optionally embeds threads for direct API parity; use getThreads when full thread pagination is needed. Set includeSystemActors to distinguish user, team, and system_user person types.',
@@ -559,7 +562,9 @@ export class ToolHandler {
           },
           required: ['conversationId'],
         },
-      },*/
+      },
+        */
+      
       {
         name: 'getServerTime',
         description: 'Get the current MCP host timestamp. Use before date-relative searches to calculate time ranges.',
@@ -609,7 +614,7 @@ export class ToolHandler {
       },
       // Customer tools (NAS-680, NAS-727, NAS-728)
 
-    /*
+      /*
       {
         name: 'getCustomer',
         description: 'Get a customer profile by ID. Returns profile with contact details (emails, phones, chat handles, social profiles, websites) plus address from a separate lookup.',
@@ -753,7 +758,9 @@ export class ToolHandler {
           },
           required: ['slug'],
         },
-      },*/
+      },
+      */
+      
       {
         name: 'listTags',
         description: 'List Help Scout tags used across inboxes. Use to discover tag IDs and exact names before filtering conversations or reports.',
@@ -1365,6 +1372,8 @@ export class ToolHandler {
         case 'searchConversations':
           result = await this.searchConversations(request.params.arguments || {});
           break;
+        
+        /*
         case 'getConversation':
           result = await this.getConversation(request.params.arguments || {});
           break;
@@ -1374,6 +1383,8 @@ export class ToolHandler {
         case 'getThreads':
           result = await this.getThreads(request.params.arguments || {});
           break;
+        */
+
         case 'getServerTime':
           result = await this.getServerTime();
           break;
@@ -1383,7 +1394,9 @@ export class ToolHandler {
         case 'getInbox':
           result = await this.getInbox(request.params.arguments || {});
           break;
-        /*case 'getCustomer':
+
+        /*
+        case 'getCustomer':
           result = await this.getCustomer(request.params.arguments || {});
           break;
         case 'listCustomers':
@@ -1416,7 +1429,8 @@ export class ToolHandler {
         case 'getOrganizationProperty':
           result = await this.getOrganizationProperty(request.params.arguments || {});
           break;
-          */
+        */
+
         case 'listTags':
           result = await this.listTags(request.params.arguments || {});
           break;

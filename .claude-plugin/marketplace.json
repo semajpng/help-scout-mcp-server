@@ -1,23 +1,23 @@
 {
-  "name": "helpscout-mcp",
+  "name": "helpscout-mcp-lite",
   "owner": {
-    "name": "Drew Burchfield"
+    "name": "James from Wooting"
   },
   "metadata": {
-    "description": "Navigation skill for the Help Scout MCP server",
-    "version": "2.0.0"
+    "description": "Navigation skill for the Help Scout MCP server, with added protection for customer/conversation details",
+    "version": "1.0.0"
   },
   "plugins": [
     {
-      "name": "helpscout-navigator",
+      "name": "wooting-helpscout-navigator",
       "source": "./skills",
       "description": "Navigation skill for the Help Scout MCP server: tool selection, correct sequencing, and the opt-in write surface. Skill only; set up the MCP server separately in your client.",
-      "version": "2.0.0",
+      "version": "1.0.0",
       "author": {
-        "name": "Drew Burchfield"
+        "name": "James from Wooting"
       },
       "category": "productivity",
-      "homepage": "https://github.com/drewburchfield/help-scout-mcp-server"
+      "homepage": "https://github.com/semajpng/help-scout-mcp-server"
     }
   ]
 }
