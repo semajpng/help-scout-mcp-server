@@ -8,8 +8,6 @@ Built by a Help Scout customer who wanted to give his support team superpowers. 
 
 ## What You Can Do
 
-- **Search conversations** by keyword, date range, status, tag, email domain, or ticket number
-- **Look up customers** by name, advanced query syntax, or exact email address
 - **Explore organizations** with direct customer and conversation traversal
 - **Inspect conversation detail** with raw ticket metadata, summaries, full threads, attachments, and original source
 - **Pull full thread history** into context before drafting a reply
